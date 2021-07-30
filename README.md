@@ -12,7 +12,9 @@ entropy가 큰(uncertainty가 큰) 데이터를 선택한다.
 
 #### 1.2 core-set selection (k-center greedy)
 diversity-based approach로 CNN layer를 통해 임베딩된 feature 공간 상에서
-data point들을 아우르는 k개의 core-set을 선택하는 방법.
+data point들을 아우르는 k개의 core-set을 선택하는 방법으로
+각 core-set은 radius 내 인접한 data point를 대표한다.
+k-center greedy 알고리즘을 구현하여 실험을 진행한다.
 
 ### 2. Simulation Process
 #### 2.1 아래 절차를 N회 반복
@@ -21,3 +23,5 @@ data point들을 아우르는 k개의 core-set을 선택하는 방법.
     3) val에 대해 active learning 과 random sampling 각각 적용
     4) 위에서 추출한 2가지 sampled data를 train에 각각 추가하여 2개 모형 학습
     5) 2개 모형 test 성능 비교
+
+#### 2.2 class imbalanced setting하에서도 test 수행
