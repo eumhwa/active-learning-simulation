@@ -46,11 +46,21 @@ def train(model, train_loader):
     
     return model
 
-def main():
+def main(i):
+    #1) train/val/test split
+    #2) baselinemodel training and testing
     baseline_model = baseline_trainer()
+    #3) active learning with validset
+    #4) additional training
+    #5) testing and comparing
+    al_result = 1
+    rs_result = 1
+    print(f"{i}-th iteration end --- / performance AL: {al_result} and RS: {rs_result}")
     return
 
 
 if __name__ == "__main__":
-    main()
+    N = 50
+    for i in range(50):
+        main(i)
    
