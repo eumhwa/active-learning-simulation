@@ -14,11 +14,11 @@ def get_transform(img_size):
     )
     return trans
 
-class CustomDataset(Dataset):
+class FlowerDataset(Dataset):
     # Flower Dataset class    
     def __init__(self, data_store, transform=None):
         self.file_list = data_store["file_list"]
-        self.labels = data_store["labels"]
+        self.labels = data_store["labels"] 
         self.transform = transform
     
     def __len__(self):
@@ -26,7 +26,7 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, idx):
         image = Image.open(self.file_list[idx])
-        label = self.labels[idx]
+        label = int(self.labels[idx]) -1 # for zero indexing
         
         if self.transform is None:
             self.transform = get_transform((224,224))
