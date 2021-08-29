@@ -13,16 +13,10 @@ from utils import *
 from config import get_params
 from sampler import ActiveLearning
 
-# Global variable (config)
-THRESHOLD = 0.5
-SAMPLING_RATE = 0.05
-BATCH_SIZE = 4
-DATA_PATH = ""
 
-# Functions
 class ALSimulator:
-    def __init__(self, arch, threshold, sampling_rate, batch_size, epoch, device, last_class_id):
-        self.data_path = "./data/flower_data"
+    def __init__(self, data_path, arch, threshold, sampling_rate, batch_size, epoch, device, last_class_id):
+        self.data_path = data_path
         self.threshold = threshold
         self.sampling_rate = sampling_rate
         self.batch_size = batch_size
@@ -178,10 +172,11 @@ def main(als:ALSimulator, i:int):
 
 
 if __name__ == "__main__":
-    parser = get_train_params()
+    parser = get_params()
     args = parser.parse_args()
 
     als = ALSimulator(
+        data_path=args.data_path
         arch=args.arch, 
         threshold=args.threshold, 
         sampling_rate=args.sampling_rate, 
