@@ -16,7 +16,7 @@ from sampler import ActiveLearning
 THRESHOLD = 0.5
 SAMPLING_RATE = 0.05
 BATCH_SIZE = 4
-DATA_PATH = 
+DATA_PATH = ""
 
 # Functions
 class ALSimulator:
@@ -36,34 +36,9 @@ class ALSimulator:
         self.valid_loader = None
         self.test_loader = None
 
-
-    def baseline_trainer(self, use_pretrained=True):
-        if self.arch == "resnet18":
-            model = resnet18(pretrained=use_pretrained, progress=True).to(self.device)
-        elif self.arch == "resnet50":
-            model = resnet50(pretrained=use_pretrained, progress=True).to(self.device)
-        else:
-            print("model not found")
-            return
-        
-        ## data loading
-        load_dataset(self.data_path, 10)
-        train_dset = CustomDataset(self.data_dict["train"]["file_list"], self.data_dict["train"]["labels"])
-        valid_dset = CustomDataset(self.data_dict["valid"]["file_list"], self.data_dict["valid"]["labels"])
-        test_dset = CustomDataset(self.data_dict["test"]["file_list"], [-1]*len(self.data_dict["test"]["file_list"]))
-
-        self.train_loader = DataLoader(train_dset, BATCH_SIZE=self.batch_size, shuffle=True)
-        self.valid_loader = DataLoader(valid_dset, BATCH_SIZE=self.batch_size, shuffle=False)
-        self.test_loader = DataLoader(test_dset, BATCH_SIZE=1, shuffle=False)
-
-        ## train
-        model = train(model, self.train_loader)
-
-        return model
-
     def load_dataset(self):
         
-        for c in range(1, self.last_class_id):
+        for c in range(1, (self.last_class_id+1)):
             tmp_files_tr = os.listdir(os.path.join(self.data_path, "train", str(c)))
             tmp_files_val = os.listdir(os.path.join(self.data_path, "valid", str(c)))
             
@@ -76,10 +51,26 @@ class ALSimulator:
         self.data_store["train"]["file_list"].extend(test_list)
 
         return
+    
+    def setup(self, use_pretrained=True):
+        
+        self.load_dataset()
+        train_dset = CustomDataset(self.data_store["train"]["file_list"], self.data_store["train"]["labels"])
+        valid_dset = CustomDataset(self.data_store["valid"]["file_list"], self.data_store["valid"]["labels"])
+        test_dset = CustomDataset(self.data_store["test"]["file_list"], [-1]*len(self.data_store["test"]["file_list"]))
 
-    def update_valid_dset(self, sample_idx):
-        self.data_store ## update 
-        return 
+        self.train_loader = DataLoader(train_dset, BATCH_SIZE=self.batch_size, shuffle=True)
+        self.valid_loader = DataLoader(valid_dset, BATCH_SIZE=self.batch_size, shuffle=False)
+        self.test_loader = DataLoader(test_dset, BATCH_SIZE=self.batch_size, shuffle=False)
+
+        if self.arch == "resnet18":
+            model = resnet18(pretrained=use_pretrained, progress=True).to(self.device)
+        elif self.arch == "resnet50":
+            model = resnet50(pretrained=use_pretrained, progress=True).to(self.device)
+        else:
+            print("model not found")
+
+        return model
 
     def train(self, model):
         
@@ -92,8 +83,6 @@ class ALSimulator:
             for data, y in self.train_loader:
                 data = data.to(self.device)
                 y = y.to(self.device)
-                
-                opt.zero_grad()
 
                 p = model(data)
                 loss = criterion(p, y)
@@ -101,6 +90,14 @@ class ALSimulator:
                 opt.step()
 
         return model
+
+    def baseline_trainer(self):    
+        model = self.setup()
+        return self.train(model)
+
+    def update_valid_dset(self, sample_idx):
+        self.data_store ## update 
+        return 
 
     def get_cnn_features(self, model):
         # hook for cnn feature extracting
@@ -118,7 +115,6 @@ class ALSimulator:
             with torch.zero_grad():
                 _ = model(data)
 
-            # hook
             tmp_embd = outputs[0][:, 0]
             embedding_outputs["embedding_output"].append(tmp_embd.cpu().detach())
             outputs = []
@@ -143,8 +139,11 @@ class ALSimulator:
         al_sample_idx = list(set(etp_pts + k_centers))
         
         return al_sample_idx
+    def validation(self, model):
+        
+        return 
     
-    def test_perf(self, model):
+    def test(self, model):
         model.eval()
         model.to(self.device)
         for data, _ in self.test_loader:
@@ -158,7 +157,7 @@ class ALSimulator:
 def main(i):
     als = ALSimulator(
         arch="resnet18", threshold=0.5, sampling_rate=0.05, 
-        batch_size=4, epoch=50, device="cpu", last_class_id=10
+        batch_size=4, epoch=25, device="cpu", last_class_id=10
     )
     #1) train/val/test split
     #2) baselinemodel training and testing
