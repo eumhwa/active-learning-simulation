@@ -10,6 +10,7 @@ import torchvision.transforms as transforms
 from torchvision.models import resnet50, resnet18
 
 from utils import *
+from config import get_params
 from sampler import ActiveLearning
 
 # Global variable (config)
@@ -25,9 +26,12 @@ class ALSimulator:
         self.threshold = threshold
         self.sampling_rate = sampling_rate
         self.batch_size = batch_size
-        self.epoch = epoch
-        fl = {"file_list":[], "labels":[]}
-        self.data_store = {"train": fl, "valid": fl, "test": fl}
+        self.epoch = epoch 
+        self.data_store = {
+            "train": {"file_list":[], "labels":[]}, 
+            "valid": {"file_list":[], "labels":[]}, 
+            "test": {"file_list":[], "labels":[]}
+            }
         self.arch = arch
         self.device = device
         self.last_class_id = last_class_id
@@ -37,31 +41,36 @@ class ALSimulator:
         self.test_loader = None
 
     def load_dataset(self):
-        
+
         for c in range(1, (self.last_class_id+1)):
-            tmp_files_tr = os.listdir(os.path.join(self.data_path, "train", str(c)))
-            tmp_files_val = os.listdir(os.path.join(self.data_path, "valid", str(c)))
+            train_path = os.path.join(self.data_path, "train", str(c))
+            valid_path = os.path.join(self.data_path, "valid", str(c))
+        
+            tmp_files_tr = [os.path.join(train_path, t) for t in os.listdir(train_path)]
+            tmp_files_val = [os.path.join(valid_path, v) for v in os.listdir(valid_path)]
             
             self.data_store["train"]["file_list"].extend(tmp_files_tr)
             self.data_store["valid"]["file_list"].extend(tmp_files_val)
             self.data_store["train"]["labels"].extend([c]*len(tmp_files_tr))
             self.data_store["valid"]["labels"].extend([c]*len(tmp_files_val))
             
-        test_list = os.listidr(os.path.join(self.data_path, "test"))
-        self.data_store["train"]["file_list"].extend(test_list)
+        test_path = os.path.join(self.data_path, "test")
+        test_list = [os.path.join(test_path, f) for f in os.listdir(test_path)]        
+        self.data_store["test"]["file_list"] = test_list
+        self.data_store["test"]["labels"] = [-1]*len(test_list)
 
         return
     
     def setup(self, use_pretrained=True):
         
         self.load_dataset()
-        train_dset = CustomDataset(self.data_store["train"]["file_list"], self.data_store["train"]["labels"])
-        valid_dset = CustomDataset(self.data_store["valid"]["file_list"], self.data_store["valid"]["labels"])
-        test_dset = CustomDataset(self.data_store["test"]["file_list"], [-1]*len(self.data_store["test"]["file_list"]))
+        train_dset = CustomDataset(self.data_store["train"])
+        valid_dset = CustomDataset(self.data_store["valid"])
+        test_dset = CustomDataset(self.data_store["test"])
 
-        self.train_loader = DataLoader(train_dset, BATCH_SIZE=self.batch_size, shuffle=True)
-        self.valid_loader = DataLoader(valid_dset, BATCH_SIZE=self.batch_size, shuffle=False)
-        self.test_loader = DataLoader(test_dset, BATCH_SIZE=self.batch_size, shuffle=False)
+        self.train_loader = DataLoader(train_dset, batch_size=self.batch_size, shuffle=True)
+        self.valid_loader = DataLoader(valid_dset, batch_size=self.batch_size, shuffle=False)
+        self.test_loader = DataLoader(test_dset, batch_size=self.batch_size, shuffle=False)
 
         if self.arch == "resnet18":
             model = resnet18(pretrained=use_pretrained, progress=True).to(self.device)
@@ -75,7 +84,7 @@ class ALSimulator:
     def train(self, model):
         
         criterion = torch.nn.CrossEntropyLoss()
-        opt = optim.SGD(model.parameters(), lr=0.01)
+        opt = torch.optim.SGD(model.parameters(), lr=0.01)
 
         model.to(self.device)
         model.train()
@@ -154,11 +163,8 @@ class ALSimulator:
         return
 
 
-def main(i):
-    als = ALSimulator(
-        arch="resnet18", threshold=0.5, sampling_rate=0.05, 
-        batch_size=4, epoch=25, device="cpu", last_class_id=10
-    )
+def main(als:ALSimulator, i:int):
+    
     #1) train/val/test split
     #2) baselinemodel training and testing
     baseline_model = als.baseline_trainer()
@@ -172,7 +178,19 @@ def main(i):
 
 
 if __name__ == "__main__":
-    N = 50
-    for i in range(50):
-        main(i)
+    parser = get_train_params()
+    args = parser.parse_args()
+
+    als = ALSimulator(
+        arch=args.arch, 
+        threshold=args.threshold, 
+        sampling_rate=args.sampling_rate, 
+        batch_size=args.batch_size, 
+        epoch=args.epoch, 
+        device=args.device, 
+        last_class_id=5
+    )
+
+    for i in range(args.n_exp):
+        main(als, i)
    

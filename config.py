@@ -4,6 +4,7 @@ import argparse
 def get_params():
     parser = argparse.ArgumentParser(description='config parameters for memAE_MNIST.py')
     
+    parser.add_argument('--n_exp', type=int, default=50, help='size of simulation')
     parser.add_argument('--epoch', type=int, default=25, help='training epochs')
     parser.add_argument('--batch_size', type=int, default=16, help='training mini batch size')
     parser.add_argument('--threshold', type=float, default=0.5, help='threshold for entropy')
