@@ -9,7 +9,7 @@ def get_train_transform(img_size):
         [
             transforms.Resize(img_size),
             transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomResizedCrop(size, scale=(0.08, 1.0), ratio=(0.75, 1.3333333333333333),
+            transforms.RandomResizedCrop(img_size, scale=(0.08, 1.0), ratio=(0.75, 1.33)),
             transforms.ToTensor(),
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         ]
