@@ -140,7 +140,7 @@ class ALSimulator:
         etp_pts = al.entropy_sampling()
         k_centers = al.core_set_selection()
         al_sample_idx = list(set(etp_pts + k_centers))
-        random_sample_idx = al.random_sampling(len(prob_list, len(al_sample_idx)))
+        random_sample_idx = al.random_sampling(len(prob_list), len(al_sample_idx))
         
         return al_sample_idx, random_sample_idx
     
