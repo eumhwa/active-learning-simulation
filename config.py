@@ -8,6 +8,7 @@ def get_params():
     parser.add_argument('--n_iter', type=int, default=3, help='number of iteration')
     parser.add_argument('--epoch', type=int, default=25, help='training epochs')
     parser.add_argument('--re_epoch', type=int, default=10, help='retraining epochs')
+    parser.add_argument('--img_size', type=int, default=224, help='training image size -width')
     parser.add_argument('--batch_size', type=int, default=16, help='training mini batch size')
     parser.add_argument('--threshold', type=float, default=0.5, help='threshold for entropy')
     parser.add_argument('--sampling_rate', type=float, default=0.1, help='sampling ratio')

@@ -4,12 +4,24 @@ import torchvision.transforms as transforms
 
 from torch.utils.data import Dataset, DataLoader
 
-def get_transform(img_size):
+def get_train_transform(img_size):
+    trans = transforms.Compose(
+        [
+            transforms.Resize(img_size),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomResizedCrop(size, scale=(0.08, 1.0), ratio=(0.75, 1.3333333333333333),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ]
+    )
+    return trans
+
+def get_test_transform(img_size):
     trans = transforms.Compose(
         [
             transforms.Resize(img_size),
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         ]
     )
     return trans
@@ -61,11 +73,11 @@ def update_data_store(data_store, idx_list, sample_type="al"):
 
     return data_store
 
-def update_loaders(loaders, data_store, batch_size):
-    al_train_dset = FlowerDataset(data_store["al"]["train"])
-    al_valid_dset = FlowerDataset(data_store["al"]["valid"])
-    rs_train_dset = FlowerDataset(data_store["rs"]["train"])
-    rs_valid_dset = FlowerDataset(data_store["rs"]["valid"])
+def update_loaders(loaders, data_store, batch_size, img_shape):
+    al_train_dset = FlowerDataset(data_store["al"]["train"], get_train_transform(img_shape))
+    al_valid_dset = FlowerDataset(data_store["al"]["valid"], get_train_transform(img_shape))
+    rs_train_dset = FlowerDataset(data_store["rs"]["train"], get_train_transform(img_shape))
+    rs_valid_dset = FlowerDataset(data_store["rs"]["valid"], get_train_transform(img_shape))
   
     al_trainloader = DataLoader(al_train_dset, batch_size=batch_size, shuffle=False)
     al_validloader = DataLoader(al_valid_dset, batch_size=batch_size, shuffle=False)
@@ -94,7 +106,7 @@ class FlowerDataset(Dataset):
         label = int(self.labels[idx]) -1 # for zero indexing
         
         if self.transform is None:
-            self.transform = get_transform((224,224))
+            self.transform = get_test_transform((224,224))
             image_transform = self.transform(image)
         else:
             image_transform = self.transform(image)

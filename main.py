@@ -16,18 +16,20 @@ from sampler import ActiveLearning
 
 
 class ALSimulator:
-    def __init__(self, data_path, arch, threshold, sampling_rate, batch_size, epoch, retrain_epoch, device, last_class_id):
+    def __init__(self, data_path, arch, threshold, sampling_rate, batch_size, 
+                epoch, retrain_epoch, img_size, device, last_class_id):
         self.data_path = data_path
         self.threshold = threshold
         self.sampling_rate = sampling_rate
         self.batch_size = batch_size
         self.epoch = epoch 
         self.retrain_epoch = epoch
-        self.data_store = {}
+        self.img_shape = (img_size, img_size)
         self.arch = arch
         self.device = device
         self.last_class_id = last_class_id
 
+        self.data_store = {}
         self.loaders = {"al":{"train":None, "valid":None}, "rs":{"train":None, "valid":None}}
         self.test_loader = None
 
@@ -36,9 +38,9 @@ class ALSimulator:
     def setup(self, use_pretrained=True):
         
         self.data_store = load_dataset(self.data_path, self.last_class_id, split_ratio=0.6)
-        train_dset = FlowerDataset(self.data_store["rs"]["train"])
-        valid_dset = FlowerDataset(self.data_store["rs"]["valid"])
-        test_dset = FlowerDataset(self.data_store["test"])
+        train_dset = FlowerDataset(self.data_store["rs"]["train"], get_train_transform(self.img_shape))
+        valid_dset = FlowerDataset(self.data_store["rs"]["valid"], get_train_transform(self.img_shape))
+        test_dset = FlowerDataset(self.data_store["test"], get_test_transform(self.img_shape))
 
         base_trainloader = DataLoader(train_dset, batch_size=self.batch_size, shuffle=False)
         base_validloader = DataLoader(valid_dset, batch_size=self.batch_size, shuffle=False)
@@ -138,14 +140,14 @@ class ALSimulator:
         etp_pts = al.entropy_sampling()
         k_centers = al.core_set_selection()
         al_sample_idx = list(set(etp_pts + k_centers))
-        random_sample_idx = al.random_sampling()
+        random_sample_idx = al.random_sampling(len(prob_list, len(al_sample_idx)))
         
         return al_sample_idx, random_sample_idx
     
     def update_valid_dset(self, al_idx, rs_idx):
         tmp_data_store = update_data_store(self.data_store, al_idx, sample_type="al")
         self.data_store = update_data_store(tmp_data_store, rs_idx, sample_type="rs")
-        self.loaders = update_loaders(self.loaders, self.data_store, self.batch_size)
+        self.loaders = update_loaders(self.loaders, self.data_store, self.batch_size, self.img_shape)
         return 
 
     def test(self, model):
@@ -226,6 +228,7 @@ if __name__ == "__main__":
         batch_size=args.batch_size, 
         epoch=args.epoch,
         retrain_epoch=args.re_epoch,
+        img_size=args.img_size,
         device=args.device, 
         last_class_id=args.last_class_id
     )
