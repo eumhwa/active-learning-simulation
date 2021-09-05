@@ -25,7 +25,7 @@ def load_dataset(data_path, last_class_id, split_ratio=0.6):
         test_path = os.path.join(data_path, "valid", str(c))
         
         trains = [os.path.join(train_path, t) for t in os.listdir(train_path)]
-        shuffled = random.sample(tmp_files_tr, len(tmp_files_tr))
+        shuffled = random.sample(trains, len(trains))
             
         unit_train = shuffled[:int(len(shuffled)*split_ratio)]
         unit_val = shuffled[int(len(shuffled)*split_ratio):]

@@ -25,7 +25,8 @@ class ActiveLearning:
 
     # -- Entropy sampling ftns
     def H(self, p):
-        return -np.sum(p * np.log(p))
+        etp = -np.sum(p * np.log(p)) if p != 1 else 0
+        return etp
 
     def cal_entropy(self, prob_list):
         out = []
@@ -106,5 +107,5 @@ class ActiveLearning:
         return result
 
     def random_sampling(self):
-        n_samples_rs = self.k + self.n_samples
+        n_samples_rs = self.core_set_k + self.n_samples
         return random.sample(range(len(self.p_list)), n_samples_rs)

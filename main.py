@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from torchvision.datasets import ImageFolder
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as transforms
-from torchvision.models import resnet50, resnet18
+from torchvision.models import resnet50, resnet18, wide_resnet50_2
 
 from utils import *
 from config import get_params
@@ -16,12 +16,13 @@ from sampler import ActiveLearning
 
 
 class ALSimulator:
-    def __init__(self, data_path, arch, threshold, sampling_rate, batch_size, epoch, device, last_class_id):
+    def __init__(self, data_path, arch, threshold, sampling_rate, batch_size, epoch, retrain_epoch, device, last_class_id):
         self.data_path = data_path
         self.threshold = threshold
         self.sampling_rate = sampling_rate
         self.batch_size = batch_size
         self.epoch = epoch 
+        self.retrain_epoch = epoch
         self.data_store = {}
         self.arch = arch
         self.device = device
@@ -51,6 +52,8 @@ class ALSimulator:
             model = resnet18(pretrained=use_pretrained, progress=True).to(self.device)
         elif self.arch == "resnet50":
             model = resnet50(pretrained=use_pretrained, progress=True).to(self.device)
+        elif self.arch == "wide_resnet50_2":
+            model = wide_resnet50_2(pretrained=use_pretrained, progress=True).to(self.device)
         else:
             print("model not found")
         
@@ -59,14 +62,15 @@ class ALSimulator:
 
         return model
 
-    def train(self, model, train_loaders):
+    def train(self, model, train_loader):
         
         criterion = torch.nn.CrossEntropyLoss()
         opt = torch.optim.Adam(model.parameters(), lr=0.0003)
 
+        e = self.epoch if self.iteration==1 else self.re_epoch
         model.to(self.device)
         model.train()
-        for e in range(self.epoch):
+        for e in range(e):
             losses = []
             for data, y in train_loader:
                 data = data.to(self.device)
@@ -93,23 +97,25 @@ class ALSimulator:
         def hook(module, input, output):
             outputs.append(output)
         
-        model.layer3[-1].register_forward_hook(hook)
+        model.avgpool.register_forward_hook(hook)
         embedding_outputs = {"embedding_output":[]}
 
         model.to(self.device)
         model.eval()
+
+        criterion = torch.nn.CrossEntropyLoss()
         p_list = []
         for data, y in self.loaders["al"]["valid"]:
             data = data.to(self.device)
             y = y.to(self.device)
-            with torch.zero_grad():
+            with torch.no_grad():
                 p = model(data)
                 loss = criterion(p, y)
 
-                ps = nn.Softmax(dim=1)(p2).cpu().detach().numpy().tolist()
+                ps = nn.Softmax(dim=1)(p).cpu().detach().numpy().tolist()
                 p_list.extend(ps)
 
-            tmp_embd = outputs[0][:, 0]
+            tmp_embd = outputs[0].squeeze()
             embedding_outputs["embedding_output"].append(tmp_embd.cpu().detach())
             outputs = []
         
@@ -218,7 +224,8 @@ if __name__ == "__main__":
         threshold=args.threshold, 
         sampling_rate=args.sampling_rate, 
         batch_size=args.batch_size, 
-        epoch=args.epoch, 
+        epoch=args.epoch,
+        retrain_epoch=args.re_epoch,
         device=args.device, 
         last_class_id=args.last_class_id
     )
