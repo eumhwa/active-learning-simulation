@@ -192,11 +192,11 @@ def save_result():
 def main(als:ALSimulator, n_step:int, i:int):
     
     #1) baselinemodel training and testing
+    
     baseline_model = als.baseline_trainer()
-    if n_step == 1:
-        base_y, base_p = test(baseline_model)
-        perf = performance(base_y, base_p)
-        print(f"{n_step}-th iteration in {i}-th exp end - / baseline performance: {perf}")
+    base_y, base_p = als.test(baseline_model)
+    perf = als.performance(base_y, base_p)
+    print(f"1-th iteration in {i}-th exp end - / baseline performance: {perf}")
     
     #2) active learning with validset
     p_list, embd_feat = als.get_cnn_features(baseline_model)
@@ -204,14 +204,14 @@ def main(als:ALSimulator, n_step:int, i:int):
     #3) additional training with updated train/valid set
     al_idx, rs_idx = als.sample_dataset(p_list, embd_feat)
     als.update_valid_dset(al_idx, rs_idx)
-    al_model = train(baseline_model, als.loaders["al"]["train"])
-    rs_model = train(baseline_model, als.loaders["rs"]["train"])
+    al_model = als.train(baseline_model, als.loaders["al"]["train"])
+    rs_model = als.train(baseline_model, als.loaders["rs"]["train"])
     
     #5) testing and comparing
-    al_y, al_p = test(al_model)
-    rs_y, rs_p = test(rs_model)
-    al_acc = performance(al_y, al_p)
-    rs_acc = performance(rs_y, rs_p)
+    al_y, al_p = als.test(al_model)
+    rs_y, rs_p = als.test(rs_model)
+    al_acc = als.performance(al_y, al_p)
+    rs_acc = als.performance(rs_y, rs_p)
     print(f"{n_step}-th iteration in {i}-th exp end - / performance al: {al_acc} and rs: {rs_acc}")
     return
 
