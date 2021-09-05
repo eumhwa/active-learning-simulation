@@ -67,9 +67,10 @@ class ALSimulator:
     def train(self, model, loader):
         
         criterion = torch.nn.CrossEntropyLoss()
-        opt = torch.optim.Adam(model.parameters(), lr=0.001)
+        opt = torch.optim.Adam(model.parameters(), lr=0.005)
 
         epch = self.epoch if self.iteration==1 else self.retrain_epoch
+        valid_ys = [l-1 for l in loader["valid"].dataset.labels]
         model.to(self.device)
         
         for e in range(epch):
@@ -86,19 +87,21 @@ class ALSimulator:
                 opt.step()
                 train_losses.append(loss.cpu().detach().numpy().item())
 
-            valid_losses = []
+            valid_losses, valid_ps = []
             model.eval()
             for data_, y_ in loader["valid"]:
                 data_ = data_.to(self.device)
                 y_ = y_.to(self.device)
                 with torch.no_grad():
                     p_ = model(data_)
-                loss_ = criterion(p_, y_)
-                valid_losses.append(loss_.cpu().detach().numpy().item())
+                    loss_ = criterion(p_, y_)
+                    valid_losses.append(loss_.cpu().detach().numpy().item())
+                    valid_ps.extend(p.argmax(axis=1).cpu().detach().numpy().tolist())
 
-            if e%5 == 0:
-                print(f" -EXP iteration: {self.iteration} epoch: {e}/{epch}")
-                print(f"trian loss: {sum(train_losses)/len(train_losses)} and valid loss: {sum(valid_losses)/len(valid_losses)}")
+            if e%5 == 1:
+                print(f"#EXP iteration: {self.iteration} epoch: {e}/{epch}")
+                print(f"##trian loss: {sum(train_losses)/len(train_losses)} and valid (acc, loss): \
+                ({str(self.performance(valid_ps, valid_ys))} % {sum(valid_losses)/len(valid_losses)})")
         
         return model
 
