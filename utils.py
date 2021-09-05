@@ -27,8 +27,8 @@ def load_dataset(data_path, last_class_id, split_ratio=0.6):
         trains = [os.path.join(train_path, t) for t in os.listdir(train_path)]
         shuffled = random.sample(tmp_files_tr, len(tmp_files_tr))
             
-        unit_train = shuffled[:int(len(shuffled)*split_ratio))]
-        unit_val = shuffled[int(len(shuffled)*split_ratio)):]
+        unit_train = shuffled[:int(len(shuffled)*split_ratio)]
+        unit_val = shuffled[int(len(shuffled)*split_ratio):]
         unit_test = [os.path.join(test_path, v) for v in os.listdir(test_path)]
             
         data_store["al"]["train"]["file_list"].extend(unit_train)
@@ -46,12 +46,12 @@ def load_dataset(data_path, last_class_id, split_ratio=0.6):
     return data_store
 
 def update_data_store(data_store, idx_list, sample_type="al"):
-
+    cur_valid_size = len(data_store[sample_type]["valid"]["file_list"])
     target_files = [data_store[sample_type]["valid"]["file_list"][i] for i in idx_list]
-    _target_files = [data_store[sample_type]["valid"]["file_list"][ii] for ii not in idx_list]
+    _target_files = [data_store[sample_type]["valid"]["file_list"][ii] for ii in range(cur_valid_size) if ii not in idx_list]
 
     target_labels = [data_store[sample_type]["valid"]["labels"][j] for j in idx_list]
-    _target_labels = [data_store[sample_type]["valid"]["labels"][jj] for j not in idx_list]
+    _target_labels = [data_store[sample_type]["valid"]["labels"][jj] for jj in range(cur_valid_size) if jj not in idx_list]
     
     data_store[sample_type]["train"]["file_list"].extend(target_files)
     data_store[sample_type]["train"]["labels"].extend(target_labels)
