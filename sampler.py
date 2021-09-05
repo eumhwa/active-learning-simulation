@@ -104,3 +104,7 @@ class ActiveLearning:
 
         result = sorted(self.css_idx_list)
         return result
+
+    def random_sampling(self):
+        n_samples_rs = self.k + self.n_samples
+        return random.sample(range(len(self.p_list)), n_samples_rs)

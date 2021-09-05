@@ -1,4 +1,4 @@
-import os, random
+import os, random, json
 import numpy as np
 import pandas as pd
 
@@ -22,55 +22,29 @@ class ALSimulator:
         self.sampling_rate = sampling_rate
         self.batch_size = batch_size
         self.epoch = epoch 
-        self.data_store = {
-            "train": {"file_list":[], "labels":[]}, 
-            "valid": {"file_list":[], "labels":[]}, 
-            "test": {"file_list":[], "labels":[]}
-            }
+        self.data_store = {}
         self.arch = arch
         self.device = device
         self.last_class_id = last_class_id
 
-        self.train_loader = None
-        self.valid_loader = None
+        self.loaders = {"al":{"train":None, "valid":None}, "rs":{"train":None, "valid":None}}
         self.test_loader = None
 
         self.iteration = 1
-        self.validation_perf = {"acc":[], "loss":[]}
-        self.test_perf = {"acc":[], "loss":[]}
-
-    def load_dataset(self, split_ratio=0.6):
-
-        for c in range(1, (self.last_class_id+1)):
-            train_path = os.path.join(self.data_path, "train", str(c))
-            test_path = os.path.join(self.data_path, "valid", str(c))
-        
-            trains = [os.path.join(train_path, t) for t in os.listdir(train_path)]
-            shuffled = random.sample(tmp_files_tr, len(tmp_files_tr))
-            
-            unit_train = shuffled[:int(len(shuffled)*split_ratio))]
-            unit_val = shuffled[int(len(shuffled)*split_ratio)):]
-            unit_test = [os.path.join(test_path, v) for v in os.listdir(test_path)]
-            
-            self.data_store["train"]["file_list"].extend(unit_train)
-            self.data_store["valid"]["file_list"].extend(unit_val)
-            self.data_store["test"]["file_list"].extend(unit_test)
-
-            self.data_store["train"]["labels"].extend([c]*len(unit_train))
-            self.data_store["valid"]["labels"].extend([c]*len(unit_val))
-            self.data_store["test"]["labels"].extend([c]*len(unit_test))
-            
-        return
     
     def setup(self, use_pretrained=True):
         
-        self.load_dataset()
-        train_dset = FlowerDataset(self.data_store["train"])
-        valid_dset = FlowerDataset(self.data_store["valid"])
+        self.data_store = load_dataset(self.data_path, self.last_class_id, split_ratio=0.6)
+        train_dset = FlowerDataset(self.data_store["rs"]["train"])
+        valid_dset = FlowerDataset(self.data_store["rs"]["valid"])
         test_dset = FlowerDataset(self.data_store["test"])
 
-        self.train_loader = DataLoader(train_dset, batch_size=self.batch_size, shuffle=True)
-        self.valid_loader = DataLoader(valid_dset, batch_size=self.batch_size, shuffle=False)
+        base_trainloader = DataLoader(train_dset, batch_size=self.batch_size, shuffle=False)
+        base_validloader = DataLoader(valid_dset, batch_size=self.batch_size, shuffle=False)
+        self.loaders["al"]["train"] = base_trainloader
+        self.loaders["rs"]["train"] = base_trainloader
+        self.loaders["al"]["valid"] = base_validloader
+        self.loaders["rs"]["valid"] = base_validloader
         self.test_loader = DataLoader(test_dset, batch_size=self.batch_size, shuffle=False)
 
         if self.arch == "resnet18":
@@ -80,22 +54,21 @@ class ALSimulator:
         else:
             print("model not found")
         
-        
         num_ftrs = model.fc.in_features
         model.fc = nn.Linear(num_ftrs, self.last_class_id)
 
         return model
 
-    def train(self, model):
+    def train(self, model, train_loaders):
         
         criterion = torch.nn.CrossEntropyLoss()
-        opt = torch.optim.Adam(model.parameters(), lr=0.003)
+        opt = torch.optim.Adam(model.parameters(), lr=0.0003)
 
         model.to(self.device)
         model.train()
         for e in range(self.epoch):
             losses = []
-            for data, y in self.train_loader:
+            for data, y in train_loader:
                 data = data.to(self.device)
                 y = y.to(self.device)
 
@@ -112,7 +85,7 @@ class ALSimulator:
 
     def baseline_trainer(self):    
         model = self.setup()
-        return self.train(model)
+        return self.train(model, self.loaders["rs"]["train"])
 
     def get_cnn_features(self, model):
         # hook for cnn feature extracting
@@ -126,7 +99,7 @@ class ALSimulator:
         model.to(self.device)
         model.eval()
         p_list = []
-        for data, y in self.valid_loader:
+        for data, y in self.loaders["al"]["valid"]:
             data = data.to(self.device)
             y = y.to(self.device)
             with torch.zero_grad():
@@ -159,9 +132,16 @@ class ALSimulator:
         etp_pts = al.entropy_sampling()
         k_centers = al.core_set_selection()
         al_sample_idx = list(set(etp_pts + k_centers))
+        random_sample_idx = al.random_sampling()
         
-        return al_sample_idx
+        return al_sample_idx, random_sample_idx
     
+    def update_valid_dset(self, al_idx, rs_idx):
+        tmp_data_store = update_data_store(self.data_store, al_idx, sample_type="al")
+        self.data_store = update_data_store(tmp_data_store, rs_idx, sample_type="rs")
+        self.loaders = update_loaders(self.loaders, self.data_store, self.batch_size)
+        return 
+
     def test(self, model):
         model.eval()
         model.to(self.device)
@@ -176,9 +156,15 @@ class ALSimulator:
 
         return y_list, p_list
 
-    def update_valid_dset(self, sample_idx):
-        self.data_store ## update 
-        return 
+    def performance(self, ys, ps):
+        oneh = []
+        for y, p in zip(ys, ps):
+            if y==p:
+                oneh.append(1)
+            else:
+                oneh.append(0)
+                
+        return 100*(sum(oneh)/len(oneh))
 
     @staticmethod
     def set_seed(random_seed):
@@ -190,18 +176,35 @@ class ALSimulator:
         random.seed(random_seed)
         return
 
-def main(als:ALSimulator, i:int):
+
+def save_result():
+    
+    return
+
+def main(als:ALSimulator, n_step:int, i:int):
     
     #1) baselinemodel training and testing
     baseline_model = als.baseline_trainer()
+    if n_step == 1:
+        base_y, base_p = test(baseline_model)
+        perf = performance(base_y, base_p)
+        print(f"{n_step}-th iteration in {i}-th exp end - / baseline performance: {perf}")
+    
     #2) active learning with validset
     p_list, embd_feat = als.get_cnn_features(baseline_model)
-    #3) additional training
-    samle_idxs = als.sample_dataset(p_list, embd_feat)
-    #4) testing and comparing
-    al_result = 1
     
-    print(f"{i}-th iteration end --- / performance AL: {al_result}")
+    #3) additional training with updated train/valid set
+    al_idx, rs_idx = als.sample_dataset(p_list, embd_feat)
+    als.update_valid_dset(al_idx, rs_idx)
+    al_model = train(baseline_model, als.loaders["al"]["train"])
+    rs_model = train(baseline_model, als.loaders["rs"]["train"])
+    
+    #5) testing and comparing
+    al_y, al_p = test(al_model)
+    rs_y, rs_p = test(rs_model)
+    al_acc = performance(al_y, al_p)
+    rs_acc = performance(rs_y, rs_p)
+    print(f"{n_step}-th iteration in {i}-th exp end - / performance al: {al_acc} and rs: {rs_acc}")
     return
 
 
@@ -217,10 +220,10 @@ if __name__ == "__main__":
         batch_size=args.batch_size, 
         epoch=args.epoch, 
         device=args.device, 
-        last_class_id=5
+        last_class_id=args.last_class_id
     )
 
     for i in range(args.n_exp):
         als.set_seed(random.randint(1000, 9999))
-        main(als, i+1)
+        main(als, args.n_iter, i+1)
    
