@@ -39,25 +39,27 @@ class ALSimulator:
         self.validation_perf = {"acc":[], "loss":[]}
         self.test_perf = {"acc":[], "loss":[]}
 
-    def load_dataset(self):
+    def load_dataset(self, split_ratio=0.6):
 
         for c in range(1, (self.last_class_id+1)):
             train_path = os.path.join(self.data_path, "train", str(c))
-            valid_path = os.path.join(self.data_path, "valid", str(c))
+            test_path = os.path.join(self.data_path, "valid", str(c))
         
-            tmp_files_tr = [os.path.join(train_path, t) for t in os.listdir(train_path)]
-            tmp_files_val = [os.path.join(valid_path, v) for v in os.listdir(valid_path)]
+            trains = [os.path.join(train_path, t) for t in os.listdir(train_path)]
+            shuffled = random.sample(tmp_files_tr, len(tmp_files_tr))
             
-            self.data_store["train"]["file_list"].extend(tmp_files_tr)
-            self.data_store["valid"]["file_list"].extend(tmp_files_val)
-            self.data_store["train"]["labels"].extend([c]*len(tmp_files_tr))
-            self.data_store["valid"]["labels"].extend([c]*len(tmp_files_val))
+            unit_train = shuffled[:int(len(shuffled)*split_ratio))]
+            unit_val = shuffled[int(len(shuffled)*split_ratio)):]
+            unit_test = [os.path.join(test_path, v) for v in os.listdir(test_path)]
             
-        test_path = os.path.join(self.data_path, "test")
-        test_list = [os.path.join(test_path, f) for f in os.listdir(test_path)]        
-        self.data_store["test"]["file_list"] = test_list
-        self.data_store["test"]["labels"] = [-1]*len(test_list)
+            self.data_store["train"]["file_list"].extend(unit_train)
+            self.data_store["valid"]["file_list"].extend(unit_val)
+            self.data_store["test"]["file_list"].extend(unit_test)
 
+            self.data_store["train"]["labels"].extend([c]*len(unit_train))
+            self.data_store["valid"]["labels"].extend([c]*len(unit_val))
+            self.data_store["test"]["labels"].extend([c]*len(unit_test))
+            
         return
     
     def setup(self, use_pretrained=True):
@@ -111,10 +113,6 @@ class ALSimulator:
     def baseline_trainer(self):    
         model = self.setup()
         return self.train(model)
-
-    def update_valid_dset(self, sample_idx):
-        self.data_store ## update 
-        return 
 
     def get_cnn_features(self, model):
         # hook for cnn feature extracting
@@ -177,6 +175,10 @@ class ALSimulator:
                 p_list.extend(p.argmax(axis=1).cpu().detach().numpy().tolist())
 
         return y_list, p_list
+
+    def update_valid_dset(self, sample_idx):
+        self.data_store ## update 
+        return 
 
     @staticmethod
     def set_seed(random_seed):
