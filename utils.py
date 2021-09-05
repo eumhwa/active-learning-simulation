@@ -79,9 +79,9 @@ def update_loaders(loaders, data_store, batch_size, img_shape):
     rs_train_dset = FlowerDataset(data_store["rs"]["train"], get_train_transform(img_shape))
     rs_valid_dset = FlowerDataset(data_store["rs"]["valid"], get_train_transform(img_shape))
   
-    al_trainloader = DataLoader(al_train_dset, batch_size=batch_size, shuffle=False)
+    al_trainloader = DataLoader(al_train_dset, batch_size=batch_size, shuffle=True)
     al_validloader = DataLoader(al_valid_dset, batch_size=batch_size, shuffle=False)
-    rs_trainloader = DataLoader(rs_train_dset, batch_size=batch_size, shuffle=False)
+    rs_trainloader = DataLoader(rs_train_dset, batch_size=batch_size, shuffle=True)
     rs_validloader = DataLoader(rs_valid_dset, batch_size=batch_size, shuffle=False)
     
     loaders["al"]["train"] = al_trainloader

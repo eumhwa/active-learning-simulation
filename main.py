@@ -42,7 +42,7 @@ class ALSimulator:
         valid_dset = FlowerDataset(self.data_store["rs"]["valid"], get_train_transform(self.img_shape))
         test_dset = FlowerDataset(self.data_store["test"], get_test_transform(self.img_shape))
 
-        base_trainloader = DataLoader(train_dset, batch_size=self.batch_size, shuffle=False)
+        base_trainloader = DataLoader(train_dset, batch_size=self.batch_size, shuffle=True)
         base_validloader = DataLoader(valid_dset, batch_size=self.batch_size, shuffle=False)
         self.loaders["al"]["train"] = base_trainloader
         self.loaders["rs"]["train"] = base_trainloader
@@ -64,34 +64,47 @@ class ALSimulator:
 
         return model
 
-    def train(self, model, train_loader):
+    def train(self, model, loader):
         
         criterion = torch.nn.CrossEntropyLoss()
-        opt = torch.optim.Adam(model.parameters(), lr=0.0003)
+        opt = torch.optim.Adam(model.parameters(), lr=0.001)
 
-        e = self.epoch if self.iteration==1 else self.re_epoch
+        epch = self.epoch if self.iteration==1 else self.retrain_epoch
         model.to(self.device)
-        model.train()
-        for e in range(e):
-            losses = []
-            for data, y in train_loader:
+        
+        for e in range(epch):
+            train_losses = []
+            model.train()
+            for data, y in loader["train"]:
                 data = data.to(self.device)
                 y = y.to(self.device)
+                opt.zero_grad()
 
                 p = model(data)
                 loss = criterion(p, y)
                 loss.backward()
                 opt.step()
-                losses.append(loss.cpu().detach().numpy().item())
+                train_losses.append(loss.cpu().detach().numpy().item())
+
+            valid_losses = []
+            model.eval()
+            for data_, y_ in loader["valid"]:
+                data_ = data_.to(self.device)
+                y_ = y_.to(self.device)
+                with torch.no_grad():
+                    p_ = model(data_)
+                loss_ = criterion(p_, y_)
+                valid_losses.append(loss_.cpu().detach().numpy().item())
 
             if e%5 == 0:
-                print(f" -EXP iteration: {self.iteration} epoch: {e}, loss:  {sum(losses)/len(losses)}")
+                print(f" -EXP iteration: {self.iteration} epoch: {e}/{epch}")
+                print(f"trian loss: {sum(train_losses)/len(train_losses)} and valid loss: {sum(valid_losses)/len(valid_losses)}")
         
         return model
 
     def baseline_trainer(self):    
         model = self.setup()
-        return self.train(model, self.loaders["rs"]["train"])
+        return self.train(model, self.loaders["rs"])
 
     def get_cnn_features(self, model):
         # hook for cnn feature extracting
@@ -155,9 +168,9 @@ class ALSimulator:
         model.to(self.device)
 
         y_list, p_list = [], []
-        for data, _ in self.test_loader:
+        for data, y in self.test_loader:
             data = data.to(self.device)
-            y_list.extend(label.detach().numpy().tolist())
+            y_list.extend(y.detach().numpy().tolist())
             with torch.no_grad():
                 p = model(data)
                 p_list.extend(p.argmax(axis=1).cpu().detach().numpy().tolist())
@@ -204,8 +217,8 @@ def main(als:ALSimulator, n_step:int, i:int):
     #3) additional training with updated train/valid set
     al_idx, rs_idx = als.sample_dataset(p_list, embd_feat)
     als.update_valid_dset(al_idx, rs_idx)
-    al_model = als.train(baseline_model, als.loaders["al"]["train"])
-    rs_model = als.train(baseline_model, als.loaders["rs"]["train"])
+    al_model = als.train(baseline_model, als.loaders["al"])
+    rs_model = als.train(baseline_model, als.loaders["rs"])
     
     #5) testing and comparing
     al_y, al_p = als.test(al_model)
