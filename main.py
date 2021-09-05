@@ -98,7 +98,7 @@ class ALSimulator:
                     valid_losses.append(loss_.cpu().detach().numpy().item())
                     valid_ps.extend(p.argmax(axis=1).cpu().detach().numpy().tolist())
 
-            if e%5 == 1:
+            if e%5 == 4:
                 print(f"#EXP iteration: {self.iteration} epoch: {e}/{epch}")
                 print(f"##trian loss: {sum(train_losses)/len(train_losses)} and valid (acc, loss): \
                 ({str(self.performance(valid_ps, valid_ys))} % {sum(valid_losses)/len(valid_losses)})")
