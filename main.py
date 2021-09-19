@@ -1,6 +1,7 @@
 import os, random, json, copy
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 import torch
 import torch.nn as nn
@@ -76,13 +77,13 @@ class ALSimulator:
         for e in range(epch):
             train_losses, train_ps, train_ys = [], [], []
             model.train()
-            tqdm_loader = tqdm(
-                loader["train"],
-                desc="Training (X / X Epochs) (acc=X% ,loss=X.X) // Validation (acc=X%, loss=X.X)",
-                bar_format="{l_bar}{r_bar}",
-                dynamic_ncols=True
-            )
-            for data, y in tqdm_loader:
+            #tqdm_loader = tqdm(
+            #    loader["train"],
+            #    desc="Training (X / X Epochs) (acc=X% ,loss=X.X) // Validation (acc=X%, loss=X.X)",
+            #    bar_format="{l_bar}{r_bar}",
+            #    dynamic_ncols=True
+            #)
+            for data, y in loader["train"]:
                 data = data.to(self.device)
                 y = y.to(self.device)
                 opt.zero_grad()
@@ -109,11 +110,11 @@ class ALSimulator:
                     valid_ps.extend(p_.argmax(axis=1).cpu().detach().numpy().tolist())
 
             if e%5 == 4:
-                tqdm_loader.set_description(f"Training ({e} / {epch} Epochs) (acc={str(self.performance(train_ps, train_ys))}% ,loss={sum(train_losses)/len(train_losses)}) \
-                // Validation (acc={str(self.performance(valid_ps, valid_ys))}%, loss={sum(valid_losses)/len(valid_losses)})")
-                #print(f"#EXP iteration: {self.iteration} epoch: {e}/{epch}")
-                #print(f"##trian (acc, loss): ({str(self.performance(train_ps, train_ys))}%, {sum(train_losses)/len(train_losses)}) \
-                #and valid (acc, loss): ({str(self.performance(valid_ps, valid_ys))}%, {sum(valid_losses)/len(valid_losses)})")
+                #tqdm_loader.set_description(f"Training ({e} / {epch} Epochs) (acc={str(self.performance(train_ps, train_ys))}% ,loss={sum(train_losses)/len(train_losses)}) \
+                #// Validation (acc={str(self.performance(valid_ps, valid_ys))}%, loss={sum(valid_losses)/len(valid_losses)})")
+                print(f"#EXP iteration: {self.iteration} epoch: {e}/{epch}")
+                print(f"##train (acc, loss): ({str(self.performance(train_ps, train_ys))}%, {sum(train_losses)/len(train_losses)}) \
+                and valid (acc, loss): ({str(self.performance(valid_ps, valid_ys))}%, {sum(valid_losses)/len(valid_losses)})")
         
         return model
 
@@ -192,7 +193,7 @@ class ALSimulator:
 
         return y_list, p_list
 
-    def copy_baseline_model_wts(self, model):
+    def copy_baseline_model_wts(self, model, use_pretrained=True):
         base_model_wts = copy.deepcopy(model.state_dict())
         if self.arch == "resnet18":
             new_model = resnet18(pretrained=use_pretrained, progress=True).to(self.device)
@@ -238,6 +239,7 @@ def save_result(i, baseline_perf, al_pref, rs_pref):
     result["active_learning_acc"] = al_pref
     result["random_sampling_acc"] = rs_pref
 
+    os.makedirs("./results", exist_ok=True)
     with open(f"./results/result_{i}.json", "w") as f:
         json.dump(result, f)
     return
