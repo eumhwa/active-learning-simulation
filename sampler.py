@@ -21,7 +21,7 @@ class ActiveLearning:
 
         self.n_data = len(p_list) if len(p_list) > 0 else features.shape[0]
         self.n_features = features.shape[1]
-        self.n_samples = int(self.n_data * self.sampling_rate * 100)
+        self.n_samples = int(self.n_data * self.sampling_rate)
 
     # -- Entropy sampling ftns
     def H(self, p):
@@ -36,8 +36,9 @@ class ActiveLearning:
         return out
 
     def entropy_sampling(self):
-        etps = np.array(self.cal_entropy(self.p_list))
-        top_n_idx = np.argsort(etps)[::-1][: self.n_samples].tolist()
+        etps = self.cal_entropy(self.p_list)
+        etps_norm = (max(etps) - etps) / (max(etps) - min(etps))
+        top_n_idx = np.argsort(etps_norm)[::-1][: self.n_samples].tolist()
 
         filtered_top_n_idx = [i for i in top_n_idx if etps[i] >= self.threshold]
         return filtered_top_n_idx

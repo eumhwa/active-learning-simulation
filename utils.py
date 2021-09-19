@@ -8,7 +8,8 @@ def get_train_transform(img_size):
     trans = transforms.Compose(
         [
             transforms.Resize(img_size),
-            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
             transforms.RandomResizedCrop(img_size, scale=(0.08, 1.0), ratio=(0.75, 1.33)),
             transforms.ToTensor(),
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
@@ -26,7 +27,7 @@ def get_test_transform(img_size):
     )
     return trans
 
-def load_dataset(data_path, last_class_id, split_ratio=0.6):
+def load_dataset(data_path, last_class_id, split_ratio=0.7):
     data_store = {"al":{}, "rs":{}, "test":{}}
     data_store["al"] = {"train":{"file_list":[], "labels":[]}, "valid":{"file_list":[], "labels":[]}}
     data_store["rs"] = {"train":{"file_list":[], "labels":[]}, "valid":{"file_list":[], "labels":[]}}
@@ -95,7 +96,7 @@ class FlowerDataset(Dataset):
     # Flower Dataset class    
     def __init__(self, data_store, transform=None):
         self.file_list = data_store["file_list"]
-        self.labels = data_store["labels"] 
+        self.labels = [d-1 for d in data_store["labels"]] 
         self.transform = transform
     
     def __len__(self):
@@ -103,7 +104,7 @@ class FlowerDataset(Dataset):
 
     def __getitem__(self, idx):
         image = Image.open(self.file_list[idx])
-        label = int(self.labels[idx]) -1 # for zero indexing
+        label = int(self.labels[idx])# for zero indexing
         
         if self.transform is None:
             self.transform = get_test_transform((224,224))

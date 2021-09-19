@@ -1,4 +1,4 @@
-import os, random, json
+import os, random, json, copy
 import numpy as np
 import pandas as pd
 
@@ -67,41 +67,53 @@ class ALSimulator:
     def train(self, model, loader):
         
         criterion = torch.nn.CrossEntropyLoss()
-        opt = torch.optim.Adam(model.parameters(), lr=0.005)
+        opt = torch.optim.Adam(model.parameters(), lr=0.001)
 
         epch = self.epoch if self.iteration==1 else self.retrain_epoch
         valid_ys = [l-1 for l in loader["valid"].dataset.labels]
         model.to(self.device)
         
         for e in range(epch):
-            train_losses = []
+            train_losses, train_ps, train_ys = [], [], []
             model.train()
-            for data, y in loader["train"]:
+            tqdm_loader = tqdm(
+                loader["train"],
+                desc="Training (X / X Epochs) (acc=X% ,loss=X.X) // Validation (acc=X%, loss=X.X)",
+                bar_format="{l_bar}{r_bar}",
+                dynamic_ncols=True
+            )
+            for data, y in tqdm_loader:
                 data = data.to(self.device)
                 y = y.to(self.device)
                 opt.zero_grad()
 
                 p = model(data)
                 loss = criterion(p, y)
+                train_losses.append(loss.cpu().detach().numpy().item())
+                train_ps.extend(p.argmax(axis=1).cpu().detach().numpy().tolist())
+                train_ys.extend(y.cpu().detach().numpy().tolist())
+                
                 loss.backward()
                 opt.step()
-                train_losses.append(loss.cpu().detach().numpy().item())
+                
+            valid_losses, valid_ps = [], []
+            with torch.no_grad():
+                model.eval()
+                for data_, y_ in loader["valid"]:
+                    data_ = data_.to(self.device)
+                    y_ = y_.to(self.device)
 
-            valid_losses, valid_ps = []
-            model.eval()
-            for data_, y_ in loader["valid"]:
-                data_ = data_.to(self.device)
-                y_ = y_.to(self.device)
-                with torch.no_grad():
                     p_ = model(data_)
                     loss_ = criterion(p_, y_)
                     valid_losses.append(loss_.cpu().detach().numpy().item())
-                    valid_ps.extend(p.argmax(axis=1).cpu().detach().numpy().tolist())
+                    valid_ps.extend(p_.argmax(axis=1).cpu().detach().numpy().tolist())
 
             if e%5 == 4:
-                print(f"#EXP iteration: {self.iteration} epoch: {e}/{epch}")
-                print(f"##trian loss: {sum(train_losses)/len(train_losses)} and valid (acc, loss): \
-                ({str(self.performance(valid_ps, valid_ys))} % {sum(valid_losses)/len(valid_losses)})")
+                tqdm_loader.set_description(f"Training ({e} / {epch} Epochs) (acc={str(self.performance(train_ps, train_ys))}% ,loss={sum(train_losses)/len(train_losses)}) \
+                // Validation (acc={str(self.performance(valid_ps, valid_ys))}%, loss={sum(valid_losses)/len(valid_losses)})")
+                #print(f"#EXP iteration: {self.iteration} epoch: {e}/{epch}")
+                #print(f"##trian (acc, loss): ({str(self.performance(train_ps, train_ys))}%, {sum(train_losses)/len(train_losses)}) \
+                #and valid (acc, loss): ({str(self.performance(valid_ps, valid_ys))}%, {sum(valid_losses)/len(valid_losses)})")
         
         return model
 
@@ -180,7 +192,24 @@ class ALSimulator:
 
         return y_list, p_list
 
-    def performance(self, ys, ps):
+    def copy_baseline_model_wts(self, model):
+        base_model_wts = copy.deepcopy(model.state_dict())
+        if self.arch == "resnet18":
+            new_model = resnet18(pretrained=use_pretrained, progress=True).to(self.device)
+        elif self.arch == "resnet50":
+            new_model = resnet50(pretrained=use_pretrained, progress=True).to(self.device)
+        elif self.arch == "wide_resnet50_2":
+            new_model = wide_resnet50_2(pretrained=use_pretrained, progress=True).to(self.device)
+        else:
+            print("model not found")
+        
+        num_ftrs = new_model.fc.in_features
+        new_model.fc = nn.Linear(num_ftrs, self.last_class_id)
+        new_model.load_state_dict(best_model_wts)
+        return new_model
+
+    @staticmethod
+    def performance(ys, ps):
         oneh = []
         for y, p in zip(ys, ps):
             if y==p:
@@ -220,8 +249,11 @@ def main(als:ALSimulator, n_step:int, i:int):
     #3) additional training with updated train/valid set
     al_idx, rs_idx = als.sample_dataset(p_list, embd_feat)
     als.update_valid_dset(al_idx, rs_idx)
-    al_model = als.train(baseline_model, als.loaders["al"])
-    rs_model = als.train(baseline_model, als.loaders["rs"])
+
+    al_model = als.copy_baseline_model_wts(baseline_model)
+    rs_model = als.copy_baseline_model_wts(baseline_model)
+    al_model = als.train(al_model, als.loaders["al"])
+    rs_model = als.train(rs_model, als.loaders["rs"])
     
     #5) testing and comparing
     al_y, al_p = als.test(al_model)
