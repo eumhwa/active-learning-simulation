@@ -205,7 +205,7 @@ class ALSimulator:
         
         num_ftrs = new_model.fc.in_features
         new_model.fc = nn.Linear(num_ftrs, self.last_class_id)
-        new_model.load_state_dict(best_model_wts)
+        new_model.load_state_dict(base_model_wts)
         return new_model
 
     @staticmethod
@@ -230,18 +230,26 @@ class ALSimulator:
         return
 
 
-def save_result():
+def save_result(i, baseline_perf, al_pref, rs_pref):
     
+    result = {}
+    result["iteration"] = i
+    result["baseline_acc"] = baseline_perf
+    result["active_learning_acc"] = al_pref
+    result["random_sampling_acc"] = re_pref
+
+    with open(f"./results/result_{i}.json", "w") as f:
+        json.dump(result, f)
     return
 
-def main(als:ALSimulator, n_step:int, i:int):
+def main(als:ALSimulator, i:int):
     
     #1) baselinemodel training and testing
     
     baseline_model = als.baseline_trainer()
     base_y, base_p = als.test(baseline_model)
     perf = als.performance(base_y, base_p)
-    print(f"1-th iteration in {i}-th exp end - / baseline performance: {perf}")
+    print(f"[{i}-th iteration] baseline performance: {perf}")
     
     #2) active learning with validset
     p_list, embd_feat = als.get_cnn_features(baseline_model)
@@ -260,7 +268,10 @@ def main(als:ALSimulator, n_step:int, i:int):
     rs_y, rs_p = als.test(rs_model)
     al_acc = als.performance(al_y, al_p)
     rs_acc = als.performance(rs_y, rs_p)
-    print(f"{n_step}-th iteration in {i}-th exp end - / performance al: {al_acc} and rs: {rs_acc}")
+    print(f"[{i}-th iteration] al acc: {al_acc} and rs acc: {rs_acc}")
+
+    save_result(i, perf, al_acc, rs_acc)
+    al_model, rs_model = None, None
     return
 
 
@@ -268,20 +279,20 @@ if __name__ == "__main__":
     parser = get_params()
     args = parser.parse_args()
 
-    als = ALSimulator(
-        data_path=args.data_path,
-        arch=args.arch, 
-        threshold=args.threshold, 
-        sampling_rate=args.sampling_rate, 
-        batch_size=args.batch_size, 
-        epoch=args.epoch,
-        retrain_epoch=args.re_epoch,
-        img_size=args.img_size,
-        device=args.device, 
-        last_class_id=args.last_class_id
-    )
-
     for i in range(args.n_exp):
+        als = ALSimulator(
+            data_path=args.data_path,
+            arch=args.arch, 
+            threshold=args.threshold, 
+            sampling_rate=args.sampling_rate, 
+            batch_size=args.batch_size, 
+            epoch=args.epoch,
+            retrain_epoch=args.re_epoch,
+            img_size=args.img_size,
+            device=args.device, 
+            last_class_id=args.last_class_id
+        )
         als.set_seed(random.randint(1000, 9999))
-        main(als, args.n_iter, i+1)
+        main(als, i+1)
+        #main(als, args.n_iter, i+1)
    
