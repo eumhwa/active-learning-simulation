@@ -236,7 +236,7 @@ def save_result(i, baseline_perf, al_pref, rs_pref):
     result["iteration"] = i
     result["baseline_acc"] = baseline_perf
     result["active_learning_acc"] = al_pref
-    result["random_sampling_acc"] = re_pref
+    result["random_sampling_acc"] = rs_pref
 
     with open(f"./results/result_{i}.json", "w") as f:
         json.dump(result, f)
